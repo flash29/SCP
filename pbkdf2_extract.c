@@ -1,7 +1,7 @@
 #include"pbkdf2_extract.h"
 
-unsigned char* get_key_using_pbkdf2(char *password, unsigned char* final_key){
-    unsigned char derived[32];
+unsigned char* get_key_using_pbkdf2(char *password ){
+    static unsigned char derived[32];
     int iterations = 4096;
     int r;
     int password_length = 0;
@@ -34,8 +34,6 @@ unsigned char* get_key_using_pbkdf2(char *password, unsigned char* final_key){
         printf("%02x ", key[i]);
     printf("\n");
 
+    return derived;
 
-    final_key = derived + 0;
-    // return key;
-    return final_key;
 }

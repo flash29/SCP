@@ -10,6 +10,6 @@
 #ifndef pbkdf2_extract_h
 #define pbkdf2_extract_h
 
-unsigned char* get_key_using_pbkdf2(char *password, unsigned char* final_key);
+unsigned char* get_key_using_pbkdf2(char *password);
 
 #endif
