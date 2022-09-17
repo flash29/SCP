@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "__node_handle": "c",
+        "*.inc": "c",
+        "hmac.h": "c",
+        "core_names.h": "c",
+        "types.h": "c",
+        "unistd.h": "c",
+        "istream": "c",
+        "locale": "c",
+        "cstdio": "c",
+        "cstring": "c"
+    }
+}
