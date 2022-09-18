@@ -1,12 +1,12 @@
 
 
-all: program1 program2
+all: ufsend ufrec
 
-program1: program1.c printing.c
-	cc program1.c printing.c -o program1
+ufsend: ufsend.c pbkdf2_extract.c
+	cc ufsend.c pbkdf2_extract.c -o ufsend -lcrypto
 
-program2: program2.c printing.c
-	cc program2.c printing.c -o program2
+ufrec: ufrec.c
+	cc ufrec.c -o ufrec -lcrypto
 
 clean:
-	rm program1 program2
+	rm ufsend ufrec

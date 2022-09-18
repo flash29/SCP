@@ -6,6 +6,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <openssl/conf.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
 
 int main(int argc, char *argv[]){
 
@@ -46,17 +49,22 @@ int main(int argc, char *argv[]){
         printf("Server Acceptance: Status Accepted");
     }
 
-    // read(new_socket, buff, 4096);
+    read(new_socket, buff, 4096);
+    printf("\n The buffer is %x \n", (char )buff[0] & 0xff );
+    printf("\n The length of the buffer is: %ld \n", sizeof(buff));
+    BIO_dump_fp (stdout, (const char *)buff, 1151);
 
-    while(1){
-        bzero(buff, sizeof(buff));
-        read(new_socket, buff, 4096);
-        printf("The latest buffer data %s", buff);
-        if (strncmp("EOF-COMPLETE-UFSEND-EXIT", buff, 25) == 0) {
-			printf("Server Exit...\n");
-			break;
-		}
-    }
+    // while(1){
+    //     bzero(buff, sizeof(buff));
+    //     read(new_socket, buff, 4096);
+    //     printf("The latest buffer data %s", buff);
+        
+    //     if (strncmp("EOF-COMPLETE-UFSEND-EXIT", buff, 25) == 0) {
+	// 		printf("Server Exit...\n");
+	// 		break;
+	// 	}
+    //     BIO_dump_fp (stdout, (const char *)buff, sizeof(buff));
+    // }
 
     printf("The buffer from ufsend is: %s", buff);
 
