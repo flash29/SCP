@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
         printf("Server Acceptance: Status Accepted");
     }
 
-    read(new_socket, buff, 4096);
+    // read(new_socket, buff, 4096);
 
     while(1){
         bzero(buff, sizeof(buff));
