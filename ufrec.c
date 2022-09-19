@@ -87,16 +87,73 @@ int main(int argc, char *argv[]){
     unsigned char *iv_read = malloc(16);
     unsigned char *tag_read = malloc(16);
     unsigned char *cipher_read = NULL;
+    unsigned char *file_size_char = malloc(sizeof(long));
     long rest_of_file_size = 0;
     int decryptedtext_len;
-     size_t iv_len = 16;
+    size_t iv_len = 16;
 
-    FILE *file_pointer = NULL;
+    FILE *file_pointer;
 
     unsigned char* key_ret;
 
     char password[100];
     int n=0;
+
+    int local = 0;
+    /*
+    if local is 0 then that means -d is selected (Send to a port number on the specified ip addr)
+    if local is 1 then -l is the given input. (Run Locally)
+    */
+   char *port_input;
+   int port_no;
+
+    if(argc < 3){
+        printf("Insuffiecient number of outputs");
+        return 0;
+    }
+
+    local = strcmp(argv[2], "-d");
+
+    if(argc == 4 && local == 0 ){
+        port_no = atoi(argv[3]);
+        printf("This is port %d", port_no);
+    }
+
+    if(local == 0){
+        socket_id = socket(AF_INET, SOCK_STREAM, 0);
+        if(socket_id == -1){
+            printf("Socket Creation: Status - Failed \n");
+        }
+        else{
+            printf("Socket Created Successfully \n");
+        }
+
+        server_address.sin_family = AF_INET;
+        server_address.sin_addr.s_addr = htonl(INADDR_ANY);
+        server_address.sin_port = htons(8080);
+
+        if((bind(socket_id, (struct sockaddr*)&server_address, sizeof(server_address))) != 0 ){
+            printf("Socket Bind: Status Failed \n");
+        }else{
+            printf("Socket Bind: Status Success \n");
+        }
+
+        if((listen(socket_id, 5)) != 0){
+            printf("Socket Listen: Status Failed \n");
+        }else{
+            printf("Socket Listen: Status Success \n");
+        }
+
+        new_socket = accept(socket_id, (struct sockaddr*)&server_address, &server_address_size);
+        if(new_socket < 0){
+            printf("Server Acceptance: Status Failed");
+        }
+        else{
+            printf("Server Acceptance: Status Accepted");
+        }
+    }
+   
+    
 
     printf("Password:");
     while ((password[n++] = getchar()) != '\n')
@@ -105,64 +162,54 @@ int main(int argc, char *argv[]){
     // Key that has been returned from the function
     key_ret = get_key_using_pbkdf2(password);
 
-    socket_id = socket(AF_INET, SOCK_STREAM, 0);
-    if(socket_id == -1){
-        printf("Socket Creation: Status - Failed \n");
-    }
-    else{
-        printf("Socket Created Successfully \n");
-    }
-
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_address.sin_port = htons(8080);
-
-    if((bind(socket_id, (struct sockaddr*)&server_address, sizeof(server_address))) != 0 ){
-        printf("Socket Bind: Status Failed \n");
-    }else{
-         printf("Socket Bind: Status Success \n");
-    }
-
-    if((listen(socket_id, 5)) != 0){
-        printf("Socket Listen: Status Failed \n");
-    }else{
-        printf("Socket Listen: Status Success \n");
-    }
-
-    new_socket = accept(socket_id, (struct sockaddr*)&server_address, &server_address_size);
-    if(new_socket < 0){
-        printf("Server Acceptance: Status Failed");
-    }
-    else{
-        printf("Server Acceptance: Status Accepted");
-    }
-
-    read(new_socket, buff, 4096);
-    // printf("\n The buffer is %x \n", (char )buff[0] & 0xff );
-    // printf("\n The length of the buffer is: %ld \n", sizeof(buff));
-    BIO_dump_fp (stdout, (const char *)buff, 1151);
-
-    file_pointer = fopen("example.txt.ufsec", "rb");
-
-    if(file_pointer != NULL){
-        size_t read_iv = fread(iv_read, sizeof(char), 16, file_pointer);
-        fseek(file_pointer, 0L, SEEK_SET);
-        fseek(file_pointer, -16L, SEEK_END);
-        rest_of_file_size = (sizeof(char) * (ftell(file_pointer)) ) - 16;
-        printf("The read file size is: %ld", rest_of_file_size);
-        cipher_read = malloc(rest_of_file_size);
-        fseek(file_pointer, 16L, SEEK_SET);
-        size_t read_cipher = fread(cipher_read, sizeof(char), rest_of_file_size, file_pointer);
-        printf("\nprinting out the read cipher: \n");
-        BIO_dump_fp (stdout, (const char *)cipher_read, read_cipher);
-        fseek(file_pointer, -16L, SEEK_END);
-        size_t read_tag = fread(tag_read, sizeof(char), 16, file_pointer);
+    if(local == 0){
+        printf("waiting here");
+        read(new_socket, iv_read, 16);
         printf("The read IV is: %s", iv_read);
+        read(new_socket, file_size_char, 8);
+        printf("\nThe cipher text size read is: %s \n", file_size_char);
+        rest_of_file_size = (long)atoi((char *)file_size_char);
+        cipher_read = malloc(rest_of_file_size);
+        read(new_socket, cipher_read, 1151);
         printf("The cipher text read is: %s", cipher_read);
+        printf("The cipher text size read is: %ld", (long)rest_of_file_size);
+        read(new_socket, tag_read, 16);
         printf("The tag read is: %s", tag_read);
     }
+    else{
 
-    fclose(file_pointer);
+        file_pointer = fopen("example.txt.ufsec", "rb");
+
+        if(file_pointer != NULL){
+            fseek(file_pointer, 0L, SEEK_SET);
+            size_t read_iv = fread(iv_read, sizeof(char), 16, file_pointer);
+            fseek(file_pointer, 0L, SEEK_SET);
+            fseek(file_pointer, -16L, SEEK_END);
+            rest_of_file_size = (sizeof(char) * (ftell(file_pointer)) ) - 16;
+            printf("The read file size is: %ld", rest_of_file_size);
+            cipher_read = malloc(rest_of_file_size);
+            fseek(file_pointer, 16L, SEEK_SET);
+            size_t read_cipher = fread(cipher_read, sizeof(char), rest_of_file_size, file_pointer);
+            printf("\nprinting out the read cipher: \n");
+            BIO_dump_fp (stdout, (const char *)cipher_read, read_cipher);
+            fseek(file_pointer, -16L, SEEK_END);
+            size_t read_tag = fread(tag_read, sizeof(char), 16, file_pointer);
+            printf("The read IV is: %s", iv_read);
+            printf("The cipher text read is: %s", cipher_read);
+            printf("The tag read is: %s", tag_read);
+        }
+
+        fclose(file_pointer);
+
+    }
+
+    // read(new_socket, buff, 4096);
+    // printf("\n The buffer is %x \n", (char )buff[0] & 0xff );
+    // printf("\n The length of the buffer is: %ld \n", sizeof(buff));
+    printf("Recieved Cipher is: \n");
+    BIO_dump_fp (stdout, (const char *)cipher_read, rest_of_file_size);
+
+    
 
      decryptedtext_len = gcm_decrypt(
                                     cipher_read, 
@@ -197,7 +244,7 @@ int main(int argc, char *argv[]){
     //     BIO_dump_fp (stdout, (const char *)buff, sizeof(buff));
     // }
 
-    printf("The buffer from ufsend is: %s", buff);
+    // printf("The buffer from ufsend is: %s", buff);
 
 
     return 0;

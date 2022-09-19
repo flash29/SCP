@@ -13,8 +13,8 @@
 #include"pbkdf2_extract.h"
 
 // write to socket
-void write_data_to_socket(int socket_id, char* data ){
-        write(socket_id, data, 4096 );
+void write_data_to_socket(int socket_id, char* data, size_t length ){
+        write(socket_id, data, length );
 }
 
 void handleErrors(void)
@@ -86,6 +86,30 @@ int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
 
 int main(int argc, char *argv[]){
 
+    char *ip_address, *port_input;
+    char *look = ":";
+    int port_no;
+    int local = 0;
+    /*
+    if local is 0 then that means -d is selected (Send to a port number on the specified ip addr)
+    if local is 1 then -l is the given input. (Run Locally)
+    */
+
+    if(argc < 3){
+        printf("Insuffiecient number of outputs");
+        return 0;
+    }
+
+    local = strcmp(argv[2], "-d");
+
+    if(argc == 4 && local == 0 ){
+        ip_address = strtok(argv[3], look);
+        port_input = strtok(NULL, look);
+
+        printf("This is the ip %s and the port %s", ip_address, port_input);
+        port_no = atoi(port_input);
+    }
+
     int socket_id;
 
     long input_file_size_buffer = 0;
@@ -124,28 +148,34 @@ int main(int argc, char *argv[]){
 
     int decryptedtext_len, ciphertext_len;
 
-    socket_id = socket(AF_INET, SOCK_STREAM, 0);
-    if(socket_id == -1){
-        printf("Socket Creation - Status: Failed \n");
-    }
-    else{
-        printf("Socket Creation - Status: Successfull\n");
+    if (local == 0){
+
+        socket_id = socket(AF_INET, SOCK_STREAM, 0);
+        if(socket_id == -1){
+            printf("Socket Creation - Status: Failed \n");
+        }
+        else{
+            printf("Socket Creation - Status: Successfull\n");
+        }
+
+        server_address.sin_family = AF_INET;
+        server_address.sin_addr.s_addr = inet_addr(ip_address);
+        server_address.sin_port = htons(port_no);
+
+        if( connect(socket_id, (struct sockaddr *)&server_address, sizeof(server_address)) != 0 ){
+            printf("Connection to specified IP and port failed");
+        }else{
+            printf("Connection to server successfull\n ");
+        }
     }
 
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server_address.sin_port = htons(8080);
-
-    if( connect(socket_id, (struct sockaddr *)&server_address, sizeof(server_address)) != 0 ){
-        printf("Connection to specified IP and port failed");
-    }else{
-        printf("Connection to server successfull\n ");
-    }
+    
 
     // write_data_to_socket(socket_id, "Hello from uf send");
 
-   
-
+   /*
+   Collect the user password to generate a Key using PBKDF2.
+   */
     printf("Password:");
     while ((password[n++] = getchar()) != '\n')
         ;
@@ -153,7 +183,7 @@ int main(int argc, char *argv[]){
     // Key that has been returned from the function
     key_ret = get_key_using_pbkdf2(password);
 
-    file_reader = fopen("example.txt", "r");
+    file_reader = fopen(argv[1], "r");
 
     if(file_reader != NULL){
         if( fseek(file_reader, 0L, SEEK_END) < 0){
@@ -162,9 +192,7 @@ int main(int argc, char *argv[]){
             long buffer_size_read = ftell(file_reader);
             if(buffer_size_read != -1){
                 source = malloc(sizeof(char) * (buffer_size_read + 1));
-                printf("The size of buffer read %ld", buffer_size_read);
                 input_file_size_buffer = buffer_size_read;
-                printf("\n the size of source file data buffer %ld \n", sizeof(source));
                 if( fseek(file_reader, 0L, SEEK_SET) < 0){
                     printf("Error");
                 }
@@ -189,7 +217,7 @@ int main(int argc, char *argv[]){
     source_file_data = (unsigned char*)source;
     free(source);
 
-    printf("This is the data from the file %s", source_file_data);
+    // printf("This is the data from the file %s", source_file_data);
 
     ciphertext = malloc( (strlen((char *)source_file_data) * sizeof(char)) + 16 );
 
@@ -207,47 +235,56 @@ int main(int argc, char *argv[]){
     /* Do something useful with the ciphertext here */
     printf("Ciphertext is:\n");
     BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len);
+    char *temp_ciphertext = (char *)ciphertext;
 
-    write_data_to_socket(socket_id, (char *)ciphertext);
+    if(local == 0){
+        char *temp_size = malloc(8);
+        sprintf(temp_size, "%ld", input_file_size_buffer);
+        write_data_to_socket(socket_id, (char *)iv, iv_len);
+        write_data_to_socket(socket_id, temp_size , 8);
+        write_data_to_socket(socket_id, (char *)ciphertext, input_file_size_buffer);
+        write_data_to_socket(socket_id, (char *)tag, 16);
+    }
+    
 
-    file_writer = fopen("example.txt.ufsec", "wb");
+    file_writer = fopen(strcat(argv[1], ".ufsec"), "wb");
     fwrite(iv, sizeof(char), 16, file_writer);
-    fwrite(ciphertext, sizeof(char), 1151, file_writer);
+    fwrite(ciphertext, sizeof(char), input_file_size_buffer, file_writer);
     fwrite(tag, sizeof(char), 16, file_writer);
     fclose(file_writer);
 
     
 
 
-     printf("\nThe from decipher ciphered text is: %s \n", ciphertext);
+    //  printf("\nThe from decipher ciphered text is: %s \n", ciphertext);
 
-    //  printf("\nThe from decipher ciphered text length is: %s \n", ciphertext_len);
+    // //  printf("\nThe from decipher ciphered text length is: %s \n", ciphertext_len);
 
-    printf("\n\n This is the total text that will be written: \n %s \n\n", iv);
+    // printf("\n\n This is the total text that will be written: \n %s \n\n", iv);
 
     
-    printf("The size after decryption: %ld", input_file_size_buffer);
-    printf("\nThe ciphered text is: %s \n", ciphertext);
+    // printf("The size after decryption: %ld", input_file_size_buffer);
+    // printf("\nThe ciphered text is: %s \n", ciphertext);
 
-    write_data_to_socket(socket_id, (char *)ciphertext);
-
-   
+    // write_data_to_socket(socket_id, (char *)ciphertext);
 
    
 
-    file_pointer = fopen("example.txt.ufsec", "rb");
+   
 
-    if(file_pointer != NULL){
-        while((bytes_read = fread(buffer, 1, sizeof(buffer), file_pointer))){
-             printf("\nthe buffer read is : %s \n", buffer);
-             BIO_dump_fp (stdout, (const char *)buffer,1151);
-             write_data_to_socket(socket_id, (char *)buffer);
-        }
-    }
+    // file_pointer = fopen("example.txt.ufsec", "rb");
 
-    fclose(file_pointer);
+    // if(file_pointer != NULL){
+    //     while((bytes_read = fread(buffer, 1, sizeof(buffer), file_pointer))){
+    //          printf("\nthe buffer read is : %s \n", buffer);
+    //          BIO_dump_fp (stdout, (const char *)buffer,1151);
+    //         //  write_data_to_socket(socket_id, (char *)buffer);
+    //     }
+    // }
 
-    write_data_to_socket(socket_id, "EOF-COMPLETE-UFSEND-EXIT");
+    // fclose(file_pointer);
+
+    write_data_to_socket(socket_id, "EOF-COMPLETE-UFSEND-EXIT", 24);
 
     return 0;
 }
