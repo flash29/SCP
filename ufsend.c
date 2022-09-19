@@ -81,65 +81,7 @@ int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
     return ciphertext_len;
 }
 
-int gcm_decrypt(unsigned char *ciphertext, int ciphertext_len,
-                unsigned char *tag,
-                unsigned char *key,
-                unsigned char *iv, int iv_len,
-                unsigned char *plaintext)
-{
-    EVP_CIPHER_CTX *ctx;
-    int len;
-    int plaintext_len;
-    int ret;
 
-    
-
-    /* Create and initialise the context */
-    if(!(ctx = EVP_CIPHER_CTX_new()))
-        handleErrors();
-
-    /* Initialise the decryption operation. */
-    if(!EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL))
-        handleErrors();
-
-    /* Set IV length. Not necessary if this is 12 bytes (96 bits) */
-    if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv_len, NULL))
-        handleErrors();
-
-    /* Initialise key and IV */
-    if(!EVP_DecryptInit_ex(ctx, NULL, NULL, key, iv))
-        handleErrors();
-
-    /*
-     * Provide the message to be decrypted, and obtain the plaintext output.
-     * EVP_DecryptUpdate can be called multiple times if necessary
-     */
-    if(!EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
-        handleErrors();
-    plaintext_len = len;
-
-    /* Set expected tag value. Works in OpenSSL 1.0.1d and later */
-    if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, tag))
-        handleErrors();
-
-    /*
-     * Finalise the decryption. A positive return value indicates success,
-     * anything else is a failure - the plaintext is not trustworthy.
-     */
-    ret = EVP_DecryptFinal_ex(ctx, plaintext + len, &len);
-
-    /* Clean up */
-    EVP_CIPHER_CTX_free(ctx);
-
-    if(ret > 0) {
-        /* Success */
-        plaintext_len += len;
-        return plaintext_len;
-    } else {
-        /* Verify failed */
-        return -1;
-    }
-}
 
 
 int main(int argc, char *argv[]){
@@ -176,8 +118,7 @@ int main(int argc, char *argv[]){
     unsigned char *ciphertext = NULL;
 
     /* Buffer for the decrypted text */
-    unsigned char decryptedtext[4096];
-
+   
     /* Buffer for the tag */
     unsigned char tag[16];
 
@@ -267,7 +208,16 @@ int main(int argc, char *argv[]){
     printf("Ciphertext is:\n");
     BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len);
 
-     write_data_to_socket(socket_id, (char *)ciphertext);
+    write_data_to_socket(socket_id, (char *)ciphertext);
+
+    file_writer = fopen("example.txt.ufsec", "wb");
+    fwrite(iv, sizeof(char), 16, file_writer);
+    fwrite(ciphertext, sizeof(char), 1151, file_writer);
+    fwrite(tag, sizeof(char), 16, file_writer);
+    fclose(file_writer);
+
+    
+
 
      printf("\nThe from decipher ciphered text is: %s \n", ciphertext);
 
@@ -275,29 +225,13 @@ int main(int argc, char *argv[]){
 
     printf("\n\n This is the total text that will be written: \n %s \n\n", iv);
 
-     decryptedtext_len = gcm_decrypt(ciphertext, ciphertext_len,
-                                    tag,
-                                    key_ret, iv, iv_len,
-                                    decryptedtext);
-
-    if (decryptedtext_len >= 0) {
-        /* Add a NULL terminator. We are expecting printable text */
-        decryptedtext[decryptedtext_len] = '\0';
-
-        /* Show the decrypted text */
-        printf("Decrypted text is:\n");
-        printf("%s\n", decryptedtext);
-    } else {
-        printf("Decryption failed\n");
-    }
+    
     printf("The size after decryption: %ld", input_file_size_buffer);
     printf("\nThe ciphered text is: %s \n", ciphertext);
 
     write_data_to_socket(socket_id, (char *)ciphertext);
 
-    file_writer = fopen("example.txt.ufsec", "wb");
-    fwrite(ciphertext, sizeof(char), 1151, file_writer);
-    fclose(file_writer);
+   
 
    
 
