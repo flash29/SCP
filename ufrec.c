@@ -83,7 +83,7 @@ int main(int argc, char *argv[]){
     int socket_id, new_socket;
     char buff[4096];
 
-    unsigned char decryptedtext[4096];
+    unsigned char *decryptedtext = NULL;
     unsigned char *iv_read = malloc(16);
     unsigned char *tag_read = malloc(16);
     unsigned char *cipher_read = NULL;
@@ -178,7 +178,7 @@ int main(int argc, char *argv[]){
     }
     else{
 
-        file_pointer = fopen("example.txt.ufsec", "rb");
+        file_pointer = fopen(argv[1], "rb");
 
         if(file_pointer != NULL){
             fseek(file_pointer, 0L, SEEK_SET);
@@ -191,7 +191,7 @@ int main(int argc, char *argv[]){
             fseek(file_pointer, 16L, SEEK_SET);
             size_t read_cipher = fread(cipher_read, sizeof(char), rest_of_file_size, file_pointer);
             printf("\nprinting out the read cipher: \n");
-            BIO_dump_fp (stdout, (const char *)cipher_read, read_cipher);
+            // BIO_dump_fp (stdout, (const char *)cipher_read, read_cipher);
             fseek(file_pointer, -16L, SEEK_END);
             size_t read_tag = fread(tag_read, sizeof(char), 16, file_pointer);
             printf("The read IV is: %s", iv_read);
@@ -207,19 +207,19 @@ int main(int argc, char *argv[]){
     // printf("\n The buffer is %x \n", (char )buff[0] & 0xff );
     // printf("\n The length of the buffer is: %ld \n", sizeof(buff));
     printf("Recieved Cipher is: \n");
-    BIO_dump_fp (stdout, (const char *)cipher_read, rest_of_file_size);
+    // BIO_dump_fp (stdout, (const char *)cipher_read, rest_of_file_size);
 
-    
 
-     decryptedtext_len = gcm_decrypt(
-                                    cipher_read, 
-                                    rest_of_file_size,
-                                    tag_read,
-                                    key_ret, 
-                                    iv_read, 
-                                    iv_len,
-                                    decryptedtext
-                                    );
+    decryptedtext = malloc(rest_of_file_size + 16 );
+    decryptedtext_len = gcm_decrypt(
+                                cipher_read, 
+                                rest_of_file_size,
+                                tag_read,
+                                key_ret, 
+                                iv_read, 
+                                iv_len,
+                                decryptedtext
+                                );
 
     if (decryptedtext_len >= 0) {
         /* Add a NULL terminator. We are expecting printable text */
@@ -232,6 +232,15 @@ int main(int argc, char *argv[]){
         printf("Decryption failed\n");
     }
 
+    //write decrypted plain text to a new file
+    if(local == 0){
+        file_pointer = fopen(argv[1], "wb");
+    }else{
+        argv[1][strlen(argv[1]) - 6 ] = '\0';
+        file_pointer = fopen(argv[1], "wb");
+    }
+    fwrite(decryptedtext, sizeof(char), rest_of_file_size, file_pointer);
+    fclose(file_pointer);
     // while(1){
     //     bzero(buff, sizeof(buff));
     //     read(new_socket, buff, 4096);

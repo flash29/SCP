@@ -10,6 +10,7 @@
 #include <openssl/conf.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
+#include <openssl/rand.h>
 #include"pbkdf2_extract.h"
 
 // write to socket
@@ -132,6 +133,7 @@ int main(int argc, char *argv[]){
 
     unsigned char *iv = (unsigned char *)"0123456789012345";
     size_t iv_len = 16;
+    unsigned char *random_iv = malloc(iv_len);
 
     FILE *file_writer = NULL;
     /*
@@ -183,7 +185,7 @@ int main(int argc, char *argv[]){
     // Key that has been returned from the function
     key_ret = get_key_using_pbkdf2(password);
 
-    file_reader = fopen(argv[1], "r");
+    file_reader = fopen(argv[1], "rb");
 
     if(file_reader != NULL){
         if( fseek(file_reader, 0L, SEEK_END) < 0){
@@ -219,6 +221,11 @@ int main(int argc, char *argv[]){
 
     // printf("This is the data from the file %s", source_file_data);
 
+    RAND_bytes( random_iv, (int)iv_len);
+
+    printf("\n\n\n random iv: %s \n\n\n", random_iv);
+    BIO_dump_fp (stdout, (const char *)random_iv, 16);
+
     ciphertext = malloc( (strlen((char *)source_file_data) * sizeof(char)) + 16 );
 
     
@@ -226,7 +233,7 @@ int main(int argc, char *argv[]){
                         source_file_data, 
                         strlen ((char *)source_file_data),
                         key_ret,
-                        iv,
+                        random_iv,
                         iv_len,
                         ciphertext, 
                         tag
@@ -240,7 +247,7 @@ int main(int argc, char *argv[]){
     if(local == 0){
         char *temp_size = malloc(8);
         sprintf(temp_size, "%ld", input_file_size_buffer);
-        write_data_to_socket(socket_id, (char *)iv, iv_len);
+        write_data_to_socket(socket_id, (char *)random_iv, iv_len);
         write_data_to_socket(socket_id, temp_size , 8);
         write_data_to_socket(socket_id, (char *)ciphertext, input_file_size_buffer);
         write_data_to_socket(socket_id, (char *)tag, 16);
@@ -248,7 +255,7 @@ int main(int argc, char *argv[]){
     
 
     file_writer = fopen(strcat(argv[1], ".ufsec"), "wb");
-    fwrite(iv, sizeof(char), 16, file_writer);
+    fwrite(random_iv, sizeof(char), 16, file_writer);
     fwrite(ciphertext, sizeof(char), input_file_size_buffer, file_writer);
     fwrite(tag, sizeof(char), 16, file_writer);
     fclose(file_writer);
