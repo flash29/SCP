@@ -279,7 +279,13 @@ int main(int argc, char *argv[]){
     ".ufsec".
     */
 
-    file_writer = fopen(strcat(argv[1], ".ufsec"), "wb");
+   if( access(strcat(argv[1], ".ufsec"), F_OK) == 0 ){
+    printf("\n Output file already exists try again with a different name or deleting the file \n");
+    return 33;
+   }
+
+
+    file_writer = fopen(argv[1], "wb");
     fwrite(random_iv, sizeof(char), 16, file_writer);
     fwrite(ciphertext, sizeof(char), input_file_size_buffer, file_writer);
     fwrite(tag, sizeof(char), 16, file_writer);

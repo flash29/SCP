@@ -251,9 +251,17 @@ int main(int argc, char *argv[]){
 
     //write decrypted plain text to a new file
     if(local == 0){
+        if( access( argv[1], F_OK) == 0 ){
+            printf("\n Output file already exists try again with a different name or deleting the file \n");
+            return 33;
+        }
         file_pointer = fopen(argv[1], "wb");
     }else{
         argv[1][strlen(argv[1]) - 6 ] = '\0';
+        if( access( argv[1], F_OK) == 0 ){
+            printf("\n Output file already exists try again with a different name or deleting the file \n");
+            return 33;
+        }
         file_pointer = fopen(argv[1], "wb");
     }
     fwrite(decryptedtext, sizeof(char), rest_of_file_size, file_pointer);
