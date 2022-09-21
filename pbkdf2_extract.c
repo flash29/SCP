@@ -1,5 +1,11 @@
 #include"pbkdf2_extract.h"
 
+
+/*
+This function uses the inbuilt PKCS5_PBKDF2_HMAC function provided by openssl
+to carry out the PBKDF2 implementation and return the KEY.
+*/
+
 unsigned char* get_key_using_pbkdf2(char *password ){
     static unsigned char derived[32];
     int iterations = 4096;

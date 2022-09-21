@@ -18,13 +18,18 @@ void write_data_to_socket(int socket_id, char* data, size_t length ){
         write(socket_id, data, length );
 }
 
+/*
+For handling any error that are arised during encryption
+*/
+
 void handleErrors(void)
 {
     ERR_print_errors_fp(stderr);
     abort();
 }
-
-
+/*
+This function carries out the AES 256 Encryption
+*/
 int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
                 unsigned char *key,
                 unsigned char *iv, int iv_len,
@@ -103,11 +108,14 @@ int main(int argc, char *argv[]){
 
     local = strcmp(argv[2], "-d");
 
+    /* if we are using -d(dumps) mode then we are splitting the input 
+    into two parts and getting the IP Address and PORT number 
+    */
     if(argc == 4 && local == 0 ){
         ip_address = strtok(argv[3], look);
         port_input = strtok(NULL, look);
 
-        printf("This is the ip %s and the port %s", ip_address, port_input);
+        // printf("This is the ip %s and the port %s", ip_address, port_input);
         port_no = atoi(port_input);
     }
 
@@ -149,7 +157,10 @@ int main(int argc, char *argv[]){
     unsigned char tag[16];
 
     int decryptedtext_len, ciphertext_len;
-
+    /*
+    If we are in dumps(-d) mode, then we have to connect to the IP address and port number
+    So that connection setup is carried out here 
+    */
     if (local == 0){
 
         socket_id = socket(AF_INET, SOCK_STREAM, 0);
@@ -157,7 +168,7 @@ int main(int argc, char *argv[]){
             printf("Socket Creation - Status: Failed \n");
         }
         else{
-            printf("Socket Creation - Status: Successfull\n");
+            // printf("Socket Creation - Status: Successfull\n");
         }
 
         server_address.sin_family = AF_INET;
@@ -171,9 +182,6 @@ int main(int argc, char *argv[]){
         }
     }
 
-    
-
-    // write_data_to_socket(socket_id, "Hello from uf send");
 
    /*
    Collect the user password to generate a Key using PBKDF2.
@@ -184,6 +192,10 @@ int main(int argc, char *argv[]){
 
     // Key that has been returned from the function
     key_ret = get_key_using_pbkdf2(password);
+
+    /*
+    Read the input file and store the entire file data on to the buffer(source variable)
+    */
 
     file_reader = fopen(argv[1], "rb");
 
@@ -219,12 +231,17 @@ int main(int argc, char *argv[]){
     source_file_data = (unsigned char*)source;
     free(source);
 
-    // printf("This is the data from the file %s", source_file_data);
+    /*
+    Generate cryptographically psuedorandom number for IV 
+    */
 
     RAND_bytes( random_iv, (int)iv_len);
 
-    printf("\n\n\n random iv: %s \n\n\n", random_iv);
-    BIO_dump_fp (stdout, (const char *)random_iv, 16);
+    
+    /*
+    Allocate memory to ciphertext and carry out the encryption of the data from the 
+    input file.
+    */
 
     ciphertext = malloc( (strlen((char *)source_file_data) * sizeof(char)) + 16 );
 
@@ -242,9 +259,13 @@ int main(int argc, char *argv[]){
     /* Do something useful with the ciphertext here */
     printf("Ciphertext is:\n");
     BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len);
-    char *temp_ciphertext = (char *)ciphertext;
 
+    /*
+    if we are in -d mode then send the IV, size of the encrypted text 
+    and the encrypted text and the tag to the connected socket. 
+    */
     if(local == 0){
+        printf("Transmitting to %s:%s \n", ip_address, port_input);
         char *temp_size = malloc(8);
         sprintf(temp_size, "%ld", input_file_size_buffer);
         write_data_to_socket(socket_id, (char *)random_iv, iv_len);
@@ -253,6 +274,10 @@ int main(int argc, char *argv[]){
         write_data_to_socket(socket_id, (char *)tag, 16);
     }
     
+    /*
+    Write the IV-ciphertext-tag data to the input filename with an extension of 
+    ".ufsec".
+    */
 
     file_writer = fopen(strcat(argv[1], ".ufsec"), "wb");
     fwrite(random_iv, sizeof(char), 16, file_writer);
@@ -261,37 +286,10 @@ int main(int argc, char *argv[]){
     fclose(file_writer);
 
     
-
-
-    //  printf("\nThe from decipher ciphered text is: %s \n", ciphertext);
-
-    // //  printf("\nThe from decipher ciphered text length is: %s \n", ciphertext_len);
-
-    // printf("\n\n This is the total text that will be written: \n %s \n\n", iv);
-
-    
-    // printf("The size after decryption: %ld", input_file_size_buffer);
-    // printf("\nThe ciphered text is: %s \n", ciphertext);
-
-    // write_data_to_socket(socket_id, (char *)ciphertext);
-
-   
-
-   
-
-    // file_pointer = fopen("example.txt.ufsec", "rb");
-
-    // if(file_pointer != NULL){
-    //     while((bytes_read = fread(buffer, 1, sizeof(buffer), file_pointer))){
-    //          printf("\nthe buffer read is : %s \n", buffer);
-    //          BIO_dump_fp (stdout, (const char *)buffer,1151);
-    //         //  write_data_to_socket(socket_id, (char *)buffer);
-    //     }
-    // }
-
-    // fclose(file_pointer);
-
-    write_data_to_socket(socket_id, "EOF-COMPLETE-UFSEND-EXIT", 24);
+    if(local == 0){
+         write_data_to_socket(socket_id, "EOF-COMPLETE-UFSEND-EXIT", 24);
+    }
+    printf("Successfully Encrypted data and sent %ld bytes", input_file_size_buffer);
 
     return 0;
 }

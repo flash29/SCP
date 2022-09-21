@@ -12,12 +12,18 @@
 #include <arpa/inet.h>
 #include"pbkdf2_extract.h"
 
+/*
+For handling any error that are arised during decryption
+*/
 void handleErrors(void)
 {
     ERR_print_errors_fp(stderr);
     abort();
 }
 
+/*
+This function carries out the AES 256 decryption
+*/
 int gcm_decrypt(unsigned char *ciphertext, int ciphertext_len,
                 unsigned char *tag,
                 unsigned char *key,
@@ -114,19 +120,25 @@ int main(int argc, char *argv[]){
 
     local = strcmp(argv[2], "-d");
 
+     /* if we are using -d(dumps) mode then we need the 
+     port number to bind the connection 
+    */
     if(argc == 4 && local == 0 ){
         port_no = atoi(argv[3]);
-        printf("This is port %d", port_no);
     }
 
+    /*
+    If we are -dumps mode then we need to bind to a port and then wait for connections
+    this is carried out here
+    */
     if(local == 0){
         socket_id = socket(AF_INET, SOCK_STREAM, 0);
         if(socket_id == -1){
             printf("Socket Creation: Status - Failed \n");
         }
-        else{
-            printf("Socket Created Successfully \n");
-        }
+        // else{
+        //     printf("Socket Created Successfully \n");
+        // }
 
         server_address.sin_family = AF_INET;
         server_address.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -134,14 +146,16 @@ int main(int argc, char *argv[]){
 
         if((bind(socket_id, (struct sockaddr*)&server_address, sizeof(server_address))) != 0 ){
             printf("Socket Bind: Status Failed \n");
-        }else{
-            printf("Socket Bind: Status Success \n");
         }
+        // else{
+        //     printf("Socket Bind: Status Success \n");
+        // }
 
         if((listen(socket_id, 5)) != 0){
             printf("Socket Listen: Status Failed \n");
-        }else{
-            printf("Socket Listen: Status Success \n");
+        }
+        else{
+            printf("Waiting for Connections \n");
         }
 
         new_socket = accept(socket_id, (struct sockaddr*)&server_address, &server_address_size);
@@ -149,11 +163,13 @@ int main(int argc, char *argv[]){
             printf("Server Acceptance: Status Failed");
         }
         else{
-            printf("Server Acceptance: Status Accepted");
+            printf("Inbound File \n");
         }
     }
    
-    
+    /*
+   Collect the user password to generate a Key using PBKDF2.
+   */ 
 
     printf("Password:");
     while ((password[n++] = getchar()) != '\n')
@@ -162,19 +178,19 @@ int main(int argc, char *argv[]){
     // Key that has been returned from the function
     key_ret = get_key_using_pbkdf2(password);
 
+    /*
+    read the iv, size of the encrypted text and tag from ufsend in -d mode.
+    or else use the input file name and read the file data and split the IV,
+    encrypted text and TAG data
+    */
+
     if(local == 0){
-        printf("waiting here");
         read(new_socket, iv_read, 16);
-        printf("The read IV is: %s", iv_read);
         read(new_socket, file_size_char, 8);
-        printf("\nThe cipher text size read is: %s \n", file_size_char);
         rest_of_file_size = (long)atoi((char *)file_size_char);
         cipher_read = malloc(rest_of_file_size);
-        read(new_socket, cipher_read, 1151);
-        printf("The cipher text read is: %s", cipher_read);
-        printf("The cipher text size read is: %ld", (long)rest_of_file_size);
+        read(new_socket, cipher_read, rest_of_file_size);
         read(new_socket, tag_read, 16);
-        printf("The tag read is: %s", tag_read);
     }
     else{
 
@@ -186,30 +202,30 @@ int main(int argc, char *argv[]){
             fseek(file_pointer, 0L, SEEK_SET);
             fseek(file_pointer, -16L, SEEK_END);
             rest_of_file_size = (sizeof(char) * (ftell(file_pointer)) ) - 16;
-            printf("The read file size is: %ld", rest_of_file_size);
+            // printf("The read file size is: %ld", rest_of_file_size);
             cipher_read = malloc(rest_of_file_size);
             fseek(file_pointer, 16L, SEEK_SET);
             size_t read_cipher = fread(cipher_read, sizeof(char), rest_of_file_size, file_pointer);
-            printf("\nprinting out the read cipher: \n");
+            // printf("\nprinting out the read cipher: \n");
             // BIO_dump_fp (stdout, (const char *)cipher_read, read_cipher);
             fseek(file_pointer, -16L, SEEK_END);
             size_t read_tag = fread(tag_read, sizeof(char), 16, file_pointer);
-            printf("The read IV is: %s", iv_read);
-            printf("The cipher text read is: %s", cipher_read);
-            printf("The tag read is: %s", tag_read);
+            // printf("The read IV is: %s", iv_read);
+            // printf("The cipher text read is: %s", cipher_read);
+            // printf("The tag read is: %s", tag_read);
         }
 
         fclose(file_pointer);
 
     }
 
-    // read(new_socket, buff, 4096);
-    // printf("\n The buffer is %x \n", (char )buff[0] & 0xff );
-    // printf("\n The length of the buffer is: %ld \n", sizeof(buff));
+    /*
+    Print the recieved encrypted file
+    */
     printf("Recieved Cipher is: \n");
-    // BIO_dump_fp (stdout, (const char *)cipher_read, rest_of_file_size);
+    BIO_dump_fp (stdout, (const char *)cipher_read, rest_of_file_size);
 
-
+    /*using the given data decrypt the file and print the result if it is successful*/
     decryptedtext = malloc(rest_of_file_size + 16 );
     decryptedtext_len = gcm_decrypt(
                                 cipher_read, 
@@ -228,8 +244,9 @@ int main(int argc, char *argv[]){
         /* Show the decrypted text */
         printf("Decrypted text is:\n");
         printf("%s\n", decryptedtext);
+        printf("Successfully recieved encrypted file and decrypted the text. %ld bytes written", rest_of_file_size);
     } else {
-        printf("Decryption failed\n");
+        printf("Decryption failed: Not the Expected output\n");
     }
 
     //write decrypted plain text to a new file
@@ -241,19 +258,6 @@ int main(int argc, char *argv[]){
     }
     fwrite(decryptedtext, sizeof(char), rest_of_file_size, file_pointer);
     fclose(file_pointer);
-    // while(1){
-    //     bzero(buff, sizeof(buff));
-    //     read(new_socket, buff, 4096);
-    //     printf("The latest buffer data %s", buff);
-        
-    //     if (strncmp("EOF-COMPLETE-UFSEND-EXIT", buff, 25) == 0) {
-	// 		printf("Server Exit...\n");
-	// 		break;
-	// 	}
-    //     BIO_dump_fp (stdout, (const char *)buff, sizeof(buff));
-    // }
-
-    // printf("The buffer from ufsend is: %s", buff);
 
 
     return 0;
