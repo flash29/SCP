@@ -237,18 +237,24 @@ int main(int argc, char *argv[]){
 
     RAND_bytes( random_iv, (int)iv_len);
 
-    
+    printf("This is the source file data is: %s \n", source_file_data);
+    BIO_dump_fp (stdout, (char *)source_file_data, input_file_size_buffer);
+    printf("\nThis is the size from the buffer %ld \n", input_file_size_buffer);
+    printf("This is the length from strlen %lu \n", strlen( (char *)source_file_data ));
+    printf("This is the iv string : %s", random_iv);
+    BIO_dump_fp (stdout, (const char *)random_iv, iv_len);
+
     /*
     Allocate memory to ciphertext and carry out the encryption of the data from the 
     input file.
     */
 
-    ciphertext = malloc( (strlen((char *)source_file_data) * sizeof(char)) + 16 );
-
+    ciphertext = malloc( input_file_size_buffer );
+   
     
     ciphertext_len = gcm_encrypt(
                         source_file_data, 
-                        strlen ((char *)source_file_data),
+                        input_file_size_buffer ,
                         key_ret,
                         random_iv,
                         iv_len,
@@ -259,6 +265,10 @@ int main(int argc, char *argv[]){
     /* Do something useful with the ciphertext here */
     printf("Ciphertext is:\n");
     BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len);
+
+    printf("This is the tag %s \n", tag);
+    BIO_dump_fp (stdout, (const char *)tag, 16);
+     
 
     /*
     if we are in -d mode then send the IV, size of the encrypted text 
