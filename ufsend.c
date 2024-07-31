@@ -28,7 +28,7 @@ void handleErrors(void)
     abort();
 }
 /*
-This function carries out the AES 256 Encryption
+This function carries out the AES 256 GCM Encryption
 */
 int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
                 unsigned char *key,
@@ -51,9 +51,7 @@ int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
     if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL))
         handleErrors();
 
-    /*
-     * Set IV length if default 12 bytes (96 bits) is not appropriate
-     */
+
     if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv_len, NULL))
         handleErrors();
 
